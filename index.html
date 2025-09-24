@@ -202,6 +202,10 @@
         <div id="scene-info-header">Scene Structure</div>
         <div id="scene-info-content"></div>
     </div>
+    <div id="animation-info" style="position: fixed; top: 20px; left: 20px; background: rgba(0,0,0,0.8); color: #fff; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; max-width: 300px; max-height: 80vh; overflow-y: auto; z-index: 100;">
+        <div id="animation-info-header" style="font-weight: bold; margin-bottom: 10px; cursor: pointer;">Animation Details</div>
+        <div id="animation-info-content"></div>
+    </div>
     <div id="animation-controls">
         <button id="play-pause">
             <span class="material-symbols-outlined">play_arrow</span>
@@ -224,7 +228,7 @@
     // Konfiguracja aplikacji
     const CONFIG = {
         // Debug
-        DEBUGGING: false,
+        DEBUGGING: true, // Włączamy debugowanie, aby zobaczyć więcej informacji
         
         // Pliki
         MODEL_FILE: 'desk_work_session_26_001.fbx',
@@ -234,9 +238,11 @@
         MODEL_COLOR: 0xFF4500,
         OVERRIDE_MATERIALS: true,
         
-        
         // Renderowanie
-        SHADOWS_ENABLED: false
+        SHADOWS_ENABLED: false,
+        
+        // Animacja
+        ANIMATION_FPS: 30 // Domyślna liczba klatek na sekundę
     };
     
     // Domyślny materiał (używany gdy CONFIG.OVERRIDE_MATERIALS = true)
@@ -396,25 +402,77 @@
                     mixer = new THREE.AnimationMixer(object);
                     animationAction = mixer.clipAction(object.animations[0]);
                     
-                    // Debugowanie informacji o animacji
-                    console.log('Informacje o animacji:', {
-                        name: object.animations[0].name,
-                        duration: object.animations[0].duration,
-                        tracks: object.animations[0].tracks.length
+                    // Szczegółowe debugowanie informacji o animacji
+                    const animation = object.animations[0];
+                    const tracks = animation.tracks;
+                    const fps = CONFIG.ANIMATION_FPS;
+                    
+                    // Analizuj ścieżki animacji, aby znaleźć rzeczywisty zakres czasu
+                    let minTime = Infinity;
+                    let maxTime = -Infinity;
+                    let keyframeCounts = [];
+                    
+                    // Przeanalizuj wszystkie ścieżki animacji, aby znaleźć rzeczywisty zakres czasu
+                    tracks.forEach((track, index) => {
+                        if (track.times.length > 0) {
+                            minTime = Math.min(minTime, track.times[0]);
+                            maxTime = Math.max(maxTime, track.times[track.times.length - 1]);
+                            keyframeCounts.push(track.times.length);
+                        }
                     });
                     
-                    // Ograniczenie maksymalnej liczby klatek do sensownej wartości
-                    // Jeśli duration jest zbyt duże, zakładamy że animacja ma 300 klatek
-                    const duration = object.animations[0].duration;
-                    const fps = 30; // Zakładamy 30 FPS
+                    // Oblicz rzeczywisty czas trwania na podstawie danych z klatek kluczowych
+                    const calculatedDuration = maxTime - minTime;
+                    const duration = animation.duration;
                     
-                    if (duration > 100 || duration <= 0) {
+                    // Szczegółowe informacje o animacji
+                    const animationInfo = {
+                        name: animation.name || 'Bez nazwy',
+                        duration: duration,
+                        calculatedDuration: calculatedDuration,
+                        tracks: tracks.length,
+                        minTime: minTime,
+                        maxTime: maxTime,
+                        averageKeyframes: keyframeCounts.length > 0 ? 
+                            keyframeCounts.reduce((sum, count) => sum + count, 0) / keyframeCounts.length : 0,
+                        maxKeyframes: Math.max(...keyframeCounts, 0),
+                        trackTypes: {}
+                    };
+                    
+                    // Zbierz informacje o typach ścieżek
+                    tracks.forEach(track => {
+                        const type = track.name.split('.').pop(); // np. position, quaternion, scale
+                        animationInfo.trackTypes[type] = (animationInfo.trackTypes[type] || 0) + 1;
+                    });
+                    
+                    console.log('Szczegółowe informacje o animacji:', animationInfo);
+                    
+                    // Wyświetl przykładowe dane z pierwszych kilku ścieżek
+                    if (tracks.length > 0) {
+                        const sampleTrack = tracks[0];
+                        console.log('Przykładowa ścieżka:', {
+                            name: sampleTrack.name,
+                            times: Array.from(sampleTrack.times).slice(0, 10), // Pokaż pierwsze 10 czasów
+                            values: Array.from(sampleTrack.values).slice(0, 10), // Pokaż pierwsze 10 wartości
+                            interpolation: sampleTrack.getInterpolation()
+                        });
+                    }
+                    
+                    // Określ liczbę klatek na podstawie danych
+                    if (calculatedDuration > 0 && calculatedDuration < 100) {
+                        // Używamy obliczonego czasu trwania, jeśli jest sensowny
+                        maxFrame = Math.floor(calculatedDuration * fps);
+                        console.log('Obliczona liczba klatek z rzeczywistych danych:', maxFrame);
+                    } else if (duration > 0 && duration < 100) {
+                        // Używamy czasu trwania z animacji, jeśli jest sensowny
+                        maxFrame = Math.floor(duration * fps);
+                        console.log('Obliczona liczba klatek z duration:', maxFrame);
+                    } else {
                         // Nieprawidłowa wartość duration, ustawiamy domyślną liczbę klatek
                         maxFrame = 300;
-                        console.warn('Nieprawidłowa wartość duration:', duration, 'Ustawiono domyślną liczbę klatek:', maxFrame);
-                    } else {
-                        maxFrame = Math.floor(duration * fps);
-                        console.log('Obliczona liczba klatek:', maxFrame);
+                        console.warn('Nieprawidłowa wartość duration:', duration, 
+                                    'Obliczony czas trwania:', calculatedDuration, 
+                                    'Ustawiono domyślną liczbę klatek:', maxFrame);
                     }
                     
                     document.getElementById('frame-counter').innerText = `0 / ${maxFrame}`;
@@ -628,9 +686,54 @@
                     infoEl.innerHTML = `Wyświetlanie pliku FBX: <strong>${CONFIG.MODEL_FILE}</strong><br>` +
                                       `Animacja: ${object.animations.length > 0 ? 'Tak' : 'Nie'}, ` +
                                       `Liczba klatek: ${maxFrame}`;
+                    
+                    // Wypełnij panel informacji o animacji
+                    const animation = object.animations[0];
+                    const animInfoContent = document.getElementById('animation-info-content');
+                    
+                    // Przygotuj szczegółowe informacje o animacji do wyświetlenia
+                    let animDetails = `<table style="width:100%; border-collapse: collapse;">`;
+                    animDetails += `<tr><td>Nazwa:</td><td>${animation.name || 'Bez nazwy'}</td></tr>`;
+                    animDetails += `<tr><td>Czas trwania:</td><td>${animation.duration.toFixed(2)}s</td></tr>`;
+                    
+                    // Oblicz rzeczywisty czas trwania na podstawie danych z klatek kluczowych
+                    let minTime = Infinity;
+                    let maxTime = -Infinity;
+                    animation.tracks.forEach(track => {
+                        if (track.times.length > 0) {
+                            minTime = Math.min(minTime, track.times[0]);
+                            maxTime = Math.max(maxTime, track.times[track.times.length - 1]);
+                        }
+                    });
+                    const calculatedDuration = maxTime - minTime;
+                    
+                    animDetails += `<tr><td>Obliczony czas:</td><td>${calculatedDuration.toFixed(2)}s</td></tr>`;
+                    animDetails += `<tr><td>Liczba klatek:</td><td>${maxFrame}</td></tr>`;
+                    animDetails += `<tr><td>FPS:</td><td>${CONFIG.ANIMATION_FPS}</td></tr>`;
+                    animDetails += `<tr><td>Liczba ścieżek:</td><td>${animation.tracks.length}</td></tr>`;
+                    
+                    // Zlicz typy ścieżek
+                    const trackTypes = {};
+                    animation.tracks.forEach(track => {
+                        const type = track.name.split('.').pop(); // np. position, quaternion, scale
+                        trackTypes[type] = (trackTypes[type] || 0) + 1;
+                    });
+                    
+                    animDetails += `<tr><td colspan="2"><b>Typy ścieżek:</b></td></tr>`;
+                    for (const [type, count] of Object.entries(trackTypes)) {
+                        animDetails += `<tr><td>${type}:</td><td>${count}</td></tr>`;
+                    }
+                    
+                    // Dodaj informacje o zakresach czasu
+                    animDetails += `<tr><td>Min czas:</td><td>${minTime.toFixed(2)}s</td></tr>`;
+                    animDetails += `<tr><td>Max czas:</td><td>${maxTime.toFixed(2)}s</td></tr>`;
+                    
+                    animDetails += `</table>`;
+                    animInfoContent.innerHTML = animDetails;
                 } else {
                     infoEl.innerHTML = `Wyświetlanie pliku FBX: <strong>${CONFIG.MODEL_FILE}</strong><br>` +
                                       `Animacja: Nie`;
+                    document.getElementById('animation-info').style.display = 'none';
                 }
                 
                 // centrowanie kamery
@@ -723,6 +826,12 @@
             animationAction.paused = !isPlaying;
             refreshPlayButton();
         }
+    });
+    
+    // Dodaj obsługę kliknięcia w nagłówek panelu informacji o animacji
+    document.getElementById('animation-info-header').addEventListener('click', function() {
+        const content = document.getElementById('animation-info-content');
+        content.style.display = content.style.display === 'none' ? 'block' : 'none';
     });
 
     document.getElementById('timeline-slider').addEventListener('input', (e) => {
