@@ -238,7 +238,7 @@
         // Kolory i materiały
         BACKGROUND_COLOR: 0xcccccc,
         MODEL_COLOR: 0xFF4500,
-        OVERRIDE_MATERIALS: true,
+        OVERRIDE_MATERIALS: false,
         
         // Renderowanie
         SHADOWS_ENABLED: false,
@@ -270,7 +270,7 @@
         scene.background = new THREE.Color(CONFIG.BACKGROUND_COLOR);
 
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(2, 2, 4);
+        camera.position.set(2, 3, 50);
 
         // Światło kierunkowe
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -657,7 +657,7 @@
                     });
 
                     if (CONFIG.DEBUGGING) {
-                        console.log(`Found: ${meshes.length} meshes, ${bones.length} bones, ${markers.length} markers`);
+                        console.log(`Found: ${Array.from(modelGroups.keys()).length} models`);
                     }
                 }
 
