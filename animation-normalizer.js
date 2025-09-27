@@ -3,8 +3,8 @@ console.log('Animation Normalizer loaded');
 
 /**
  * Normalizuje animację FBX, przesuwając wszystkie klatki kluczowe tak, aby zaczynały się od 0
- * @param {THREE.AnimationClip} animation - Animacja do znormalizowania
- * @returns {THREE.AnimationClip} Znormalizowana animacja
+ * @param {Object} animation - Animacja do znormalizowania
+ * @returns {Object} Znormalizowana animacja
  */
 function normalizeAnimation(animation) {
     if (!animation || !animation.tracks || animation.tracks.length === 0) {
@@ -35,34 +35,18 @@ function normalizeAnimation(animation) {
         return animation;
     }
     
-    // Stwórz nową animację zamiast klonować, aby uniknąć problemów z referencjami
-    const tracks = [];
+    // Klonuj animację
+    const normalizedAnimation = animation.clone();
     
     // Przesuń wszystkie czasy klatek kluczowych
-    animation.tracks.forEach(track => {
-        // Stwórz nową tablicę czasów
-        const times = new Float32Array(track.times.length);
+    normalizedAnimation.tracks.forEach(track => {
         for (let i = 0; i < track.times.length; i++) {
-            times[i] = track.times[i] - minTime;
+            track.times[i] -= minTime;
         }
-        
-        // Stwórz nową ścieżkę z przesuniętymi czasami
-        const newTrack = new THREE.KeyframeTrack(
-            track.name,
-            times,
-            track.values.slice(),
-            track.getInterpolation()
-        );
-        
-        tracks.push(newTrack);
     });
     
-    // Stwórz nową animację z przesuniętymi ścieżkami
-    const normalizedAnimation = new THREE.AnimationClip(
-        animation.name,
-        maxTime - minTime, // Nowy czas trwania
-        tracks
-    );
+    // Zaktualizuj czas trwania animacji
+    normalizedAnimation.duration = maxTime - minTime;
     
     console.log('Animacja znormalizowana. Nowy czas trwania:', normalizedAnimation.duration, 'sekund');
     return normalizedAnimation;
@@ -70,10 +54,10 @@ function normalizeAnimation(animation) {
 
 /**
  * Ustawia określony offset klatek dla animacji FBX
- * @param {THREE.AnimationClip} animation - Animacja do modyfikacji
+ * @param {Object} animation - Animacja do modyfikacji
  * @param {number} frameOffset - Offset klatek do odjęcia
  * @param {number} fps - Liczba klatek na sekundę
- * @returns {THREE.AnimationClip} Zmodyfikowana animacja
+ * @returns {Object} Zmodyfikowana animacja
  */
 function applyFrameOffset(animation, frameOffset, fps) {
     if (!animation || !animation.tracks || animation.tracks.length === 0) {
